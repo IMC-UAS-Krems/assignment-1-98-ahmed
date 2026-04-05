@@ -55,7 +55,18 @@ class TestTotalListeningTime:
     # TODO: Add a test that verifies the correct value for a known time period.
     #       Calculate the expected total based on the fixture data in conftest.py.
     def test_known_period_value(self, platform: StreamingPlatform) -> None:
-        pass
+        start = RECENT
+        end = RECENT + timedelta(hours = 4)
+        # Sessions in this window:
+        # s1 = 180
+        # s2 = 210
+        # s4 = 200
+        # s5 = 180
+        # s6 = 240
+        expected = (180 + 210 + 200 + 180 + 240) / 60.0
+        result = platform.total_listening_time_minutes(start, end)
+        assert result == expected
+
 
 
 # ===========================================================================
@@ -86,8 +97,14 @@ class TestAvgUniqueTracksPremium:
     #       average for premium users. You'll need to count unique tracks
     #       per premium user and calculate the average.
     def test_correct_value(self, platform: StreamingPlatform) -> None:
-        pass
-
+        # Premium users only: Bob and Charlie
+        # Bob recent unique tracks: t1, t2, t6 -> 3
+        bob_recent_tracks = {"t1", "t2", "t6"}
+        # Charlie recent unique tracks: t1, t4 -> 2
+        charlie_recent_tracks = {"t1", "t4"}
+        # Average = (3 + 2) / 2 = 2.5
+        expected_average = (len(bob_recent_tracks) + len(charlie_recent_tracks)) / 2
+        assert platform.avg_unique_tracks_per_premium_user(days=30) == expected_average
 
 # ===========================================================================
 # Q3 - Track with the most distinct listeners
@@ -110,7 +127,13 @@ class TestTrackMostDistinctListeners:
     # TODO: Add a test that verifies the correct track is returned.
     #       Count listeners per track from the fixture data.
     def test_correct_track(self, platform: StreamingPlatform) -> None:
-        pass
+        # Track with most distinct listeners based on fixture data:
+        # t1: listened by Alice, Bob, Charlie, evan -> 4 distinct listeners
+        expected_track_id = "t1"
+        result = platform.track_with_most_distinct_listeners()
+        assert result is not None
+        assert result.track_id == expected_track_id
+
 
 
 # ===========================================================================
@@ -142,7 +165,28 @@ class TestAvgSessionDurationByType:
 
     # TODO: Add tests to verify all user types are present and have correct averages.
     def test_all_user_types_present(self, platform: StreamingPlatform) -> None:
-        pass
+        #result sorted
+        result = platform.avg_session_duration_by_user_type()
+        #expcted sorted
+        expected_result = [
+            # Family members = Evan + Fay
+            # Evan: 180, 210, 600
+            # Fay: 195
+            # Total = 1185 over 4 sessions
+            ("FamilyMember", (180 + 210 + 600 +195)/4),
+            # Family Account user Diana has one session: 220 seconds
+            ("FamilyAccountUser", 220.0),
+            # Premium users = Bob + Charlie
+            # Bob: 180, 210, 195, 200
+            # Charlie: 180, 240
+            # Total = 1205 over 6 sessions
+            ("PremiumUser", (180 + 210 + 195 + 200 + 180 + 240)/6),
+            # Alice has one session: 180 seconds
+            ("FreeUser", 180)
+        ]
+
+        assert result == expected_result
+
 
 
 # ===========================================================================
