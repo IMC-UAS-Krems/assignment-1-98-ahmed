@@ -167,21 +167,21 @@ class TestAvgSessionDurationByType:
     def test_all_user_types_present(self, platform: StreamingPlatform) -> None:
         #result sorted
         result = platform.avg_session_duration_by_user_type()
-        #expcted sorted
+        #expcted sorted because the function sorts the result
         expected_result = [
             # Family members = Evan + Fay
-            # Evan: 180, 210, 600
-            # Fay: 195
-            # Total = 1185 over 4 sessions
+            # Evan: 180, 210, 600 => sessions: s9, s10, s11 
+            # Fay: 195 => sessions: s12
+            # Total = 180 + 210 + 600 + 195 = 1185 over 4 sessions
             ("FamilyMember", (180 + 210 + 600 +195)/4),
-            # Family Account user Diana has one session: 220 seconds
+            # Family Account user Diana has one session s8: 220 seconds
             ("FamilyAccountUser", 220.0),
             # Premium users = Bob + Charlie
-            # Bob: 180, 210, 195, 200
-            # Charlie: 180, 240
-            # Total = 1205 over 6 sessions
+            # Bob: 180, 210, 195, 200  => sessions: s1, s2, s3, s4
+            # Charlie: 180, 240 => sessions: s5, s6
+            # Total = 180 + 210 + 195 + 200 + 180 + 240 = 1205 over 6 sessions
             ("PremiumUser", (180 + 210 + 195 + 200 + 180 + 240)/6),
-            # Alice has one session: 180 seconds
+            # Alice has one session s7: 180 seconds
             ("FreeUser", 180)
         ]
 
@@ -215,10 +215,23 @@ class TestUnderageSubUserListening:
 
     # TODO: Add tests for correct values with default and custom thresholds.
     def test_correct_value_default_threshold(self, platform: StreamingPlatform) -> None:
-        pass
+        # Under 18: Evan 10, Fay 8, Elena 5
+        # Evan sessions: 180 + 210 + 600 seconds
+        # Fay sessions: 195 seconds
+        # Elena: no sessions
+        expected = (180 + 210 + 600 + 195) / 60.0
+        result = platform.total_listening_time_underage_sub_users_minutes()
+        assert result == expected
 
     def test_custom_threshold(self, platform: StreamingPlatform) -> None:
-        pass
+        # Under 10: Fay (8) and Elena (5)
+        # Fay sessions: 195 seconds
+        # Elena: no sessions
+        # Evan  age 10 => excluded because condition < 10
+        
+        expected = 195 / 60.0
+        result = platform.total_listening_time_underage_sub_users_minutes(age_threshold=10)
+        assert result == expected
 
 
 # ===========================================================================
@@ -257,7 +270,31 @@ class TestTopArtistsByListeningTime:
 
     # TODO: Add a test that verifies the correct artists and values.
     def test_top_artist(self, platform: StreamingPlatform) -> None:
-        pass
+        # Pixels (a1):
+        # s1=t1(180) s2=t2(210) s3=t3(195) s5=t1(180),
+        # s7=t1(180) s9=t1(180) s10=t2(210) s12=t3(195)
+        # Total = 180+210+195+180+180+180+210+195 = 1530/60 minutes
+
+        # Waves (a2):
+        # s6=t4(240), s8=t5(220)
+        # Total = 240+220 = 460/60 minutes
+
+        # Echoes (a3):
+        # s4=t6(200)
+        # Total = 200 = 200/60 minutes
+
+
+        result = platform.top_artists_by_listening_time(n=3)
+    ###################ARTIST1##########################
+        assert result[0][0].artist_id == "a1"
+        assert result[0][0].name == "Pixels"
+        assert result[0][1] == 1530 / 60.0
+    ###################ARTIST2####################
+        assert result[1][0].artist_id == "a2"
+        assert result[1][1] == 460 / 60.0
+    ####################ARTIST3####################
+        assert result[2][0].artist_id == "a3"
+        assert result[2][1] == 200 / 60.0
 
 
 # ===========================================================================
@@ -294,8 +331,18 @@ class TestUserTopGenre:
 
     # TODO: Add a test that verifies the correct genre and percentage for a known user.
     def test_correct_top_genre(self, platform: StreamingPlatform) -> None:
-        pass
-
+        #Bob_session:
+        # pop: t1(180) + t2(210) + t3(195) = 585
+        # indie: t6(200)
+        # total = 180 + 210 + 195 + 200 = 785 seconds
+        #POP_percentage = (585 / 785) * 100 = 74.58%
+        # top genre = pop
+        result = platform.user_top_genre("u2")
+        assert result is not None
+        print(result[1])
+        assert result[0] == "pop"
+        assert result[1] == (585 / 785) * 100
+        #print(result[1])
 
 # ===========================================================================
 # Q8 - CollaborativePlaylists with more than threshold distinct artists
@@ -329,7 +376,12 @@ class TestCollaborativePlaylistsManyArtists:
     # TODO: Add tests that verify the correct playlists are returned with
     #       different threshold values.
     def test_default_threshold(self, platform: StreamingPlatform) -> None:
-        pass
+        # cp1 => 3 distinct song artists: Pixels, Waves, Echoes
+        # cp2 => 1 distinct song artist: Pixels
+        # with threshold = 3 neither playlist qualifies
+        result = platform.collaborative_playlists_with_many_artists(threshold=2)
+        assert len(result) == 1
+        assert result[0].playlist_id == "cp1"
 
 
 # ===========================================================================
@@ -357,13 +409,16 @@ class TestAvgTracksPerPlaylistType:
 
     # TODO: Add tests that verify the correct averages for each playlist type.
     def test_standard_playlist_average(self, platform: StreamingPlatform) -> None:
-        pass
+        #standard playlists: p1 with 2 tracks => avg = 2 / 1 = 2.0
+        result = platform.avg_tracks_per_playlist_type()
+        assert result["Playlist"] == 2.0
 
     def test_collaborative_playlist_average(
         self, platform: StreamingPlatform
     ) -> None:
-        pass
-
+        #collaborative playlists: cp1, cp2  => cp1: 4 tracks, cp2: 2 tracks: => avg = (4+2) / 2 = 3.0
+        result = platform.avg_tracks_per_playlist_type()
+        assert result["CollaborativePlaylist"] == 3.0
 
 # ===========================================================================
 # Q10 - Users who completed at least one full album
@@ -398,7 +453,17 @@ class TestUsersWhoCompletedAlbums:
 
     # TODO: Add tests that verify the correct users and albums are identified.
     def test_correct_users_identified(self, platform: StreamingPlatform) -> None:
-        pass
+        # bob listened to t1, t2 t3 => part of of Digital dreams album => bob completed listening to "Digital Dreams" 
+        # and listened also to t6 => only track in "Echoes of Time" => bob completed listening to "Echoes of Time"
+        #bob completed 2 albums: "Digital Dreams" and "Echoes of Time"
+        result = platform.users_who_completed_albums()
+        assert len(result) == 1
+        assert result[0][0].user_id == "u2"
+        assert result[0][0].name == "Bob"
+        
 
     def test_correct_album_titles(self, platform: StreamingPlatform) -> None:
-        pass
+        #bob completed 2 albums: "Digital Dreams" and "Echoes of Time"
+        result = platform.users_who_completed_albums()
+        assert len(result[0][1]) == 2
+        assert result[0][1] == ["Digital Dreams","Echoes of Time"]
